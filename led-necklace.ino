@@ -8,9 +8,9 @@ const char* password = "pw";
 #define PIN         2
 #define LED_COUNT  52
 
-const int brightness = 10;
+const int brightness = 5;
 
-enum mode {modeColorWipe, modeRainbowRain, modeRain, modeRainbow, modeSocketConnect, modeSparkle};
+enum mode {modeColorWipe, modeRainbowRain, modeRain, modeRainbow, modeSnake, modeSocketConnect, modeSparkle};
 mode currentMode = modeSocketConnect;
 
 // Parameter 1 = number of pixels in strip
@@ -94,6 +94,9 @@ void trigger(const char* event, const char * payload, size_t triggerLength) {
   } else if (strcmp(event, "sparkle") == 0){
      Serial.printf("[WSc] trigger event %s\n", event);
      currentMode = modeSparkle;
+  } else if (strcmp(event, "snake") == 0){
+   Serial.printf("[WSc] trigger event %s\n", event);
+   currentMode = modeSnake;
   }
 }
 
@@ -150,6 +153,10 @@ void loop() {
       Serial.print("sparkle\n");
       sparkle();
       break;
+    case modeSnake:
+      Serial.print("snake\n");
+      snakeLoop();
+      break;
     default:
       break;
   }
@@ -183,22 +190,41 @@ void loop() {
     }    
 }
 
-// draw lights according to strips[][] array
-//void updateStrips() {
-//  for(int x=0; x < stripCount; x++) {
-//    for(int y=ledCount-1; y>=0; y--) {
-//      pixelStrips[x].setPixelColor(y, strips[x][y]);
-//      pixelStrips[x].show();
-//    }
-//  }  
-//}
-
 // Fill the dots one after the other with a color
 void colorWipe(uint32_t c, uint8_t wait) {
   for(uint16_t i=0; i<rings.numPixels(); i++) {
       rings.setPixelColor(i, c);
       rings.show();
       delay(wait);
+  }
+}
+
+// These are the pixels in order of animation-- 26 pixels in total:
+int sine[] = {
+   8, 9, 10, 11, 0, 1, 2, 3, 15, 16, 17, 18, 19, 49, 50, 51, 28,
+  29, 30, 31, 32, 33, 34, 35, 36, 37 };
+
+ void snake() {
+    for(int i=0; i<26; i++) {
+    rings.setPixelColor(sine[i], rings.Color(75, 250, 100, 0)); // Draw 'head' pixel
+    rings.setPixelColor(sine[(i + 26 - 6) % 26], 0); // Erase 'tail'
+    rings.show();
+    delay(40);
+  }
+ }
+
+// Array of pixels in order of animation - 52 in total:
+int sineLoop[] = {
+   8, 9, 10, 11, 0, 1, 2, 3, 15, 16, 17, 18, 19, 49, 50, 51, 28,
+  29, 30, 31, 32, 33, 34, 35, 36, 37, 38, 39, 40, 41, 42, 43, 44, 45, 
+  46, 47, 48, 20, 21, 22, 23, 24, 25, 26, 27, 12, 13, 14, 4, 5, 6, 7};
+ 
+void snakeLoop() {
+  for(int i=0; i<52; i++) {
+    rings.setPixelColor(sineLoop[i], 0); // Erase 'tail'
+    rings.setPixelColor(sineLoop[(i + 10) % 52], rings.Color(75, 250, 100, 0)); // Draw 'head' pixel
+    rings.show();
+    delay(60);
   }
 }
 
