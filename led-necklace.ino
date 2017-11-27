@@ -7,7 +7,8 @@ const char* password = "pw";
 
 #define PIN         2
 #define LED_COUNT  52
-const int brightness = 30;
+
+const int brightness = 10;
 
 enum mode {modeColorWipe, modeRainbowRain, modeRain, modeRainbow, modeSocketConnect, modeSparkle};
 mode currentMode = modeSocketConnect;
@@ -78,12 +79,9 @@ const String getEventPayload(const String msg) {
 }
 
 void trigger(const char* event, const char * payload, size_t triggerLength) {
-  Serial.printf("[WSc] trigger event %s\n", event);
-  
   if(strcmp(event, "rainbow") == 0) {
     Serial.printf("[WSc] trigger event %s\n", event);
     currentMode = modeRainbow;
-
   } else if (strcmp(event, "colorWipe") == 0){
      Serial.printf("[WSc] trigger event %s\n", event);
      currentMode = modeColorWipe;
@@ -138,7 +136,7 @@ void loop() {
       break;
     case modeRainbow:
       Serial.print("rainbow\n");
-      rainbow(0);
+      rainbow();
       break;
     case modeRain:
       Serial.print("rain\n");
@@ -207,9 +205,12 @@ void colorWipe(uint32_t c, uint8_t wait) {
 // MR SPARKLE PROGRAM!!!!
 // Draw a random led, remove a random led.
 void sparkle() {
+  delay(100);
   rings.setPixelColor(random(52), rings.Color(255, 255, 255));
-
+  rings.show();
   rings.setPixelColor(random(52), rings.Color(0, 0, 0));  
+  rings.setPixelColor(random(52), rings.Color(0, 0, 0));  
+  rings.show();
 }
 
 // Rain Program
@@ -246,15 +247,16 @@ void createRain(uint32_t color) {
 }
 
 //Rainbow Program
-void rainbow(uint8_t wait) {
-  int j, x;
-  
-  for(j=1; j < 256; j++) {
-      for(x=LED_COUNT-1; x>=0; x--) {   
-        rings.setPixelColor(x, Wheel(j));
-      }
-      rings.show();
-  }  
+void rainbow() {
+  uint16_t i, j;
+
+  for(j=0; j<256; j++) {
+    for(i=0; i<rings.numPixels(); i++) {
+      rings.setPixelColor(i, Wheel((i+j) & 255));
+    }
+    rings.show();
+    delay(20);
+  }
 }
 
 // Input a value 0 to 255 to get a color value.
