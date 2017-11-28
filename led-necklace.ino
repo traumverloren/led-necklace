@@ -239,37 +239,124 @@ void sparkle() {
   rings.show();
 }
 
+uint32_t colors[52];
+int ring1[6] = {7,  8,  9, 10, 11,  0};
+int ring2[6] = {6,  5,  4,  3,  2,  1};
+int ring3[8] = {16, 15, 14, 13, 12, 27, 26, 25};
+int ring4[8] = {17, 18, 19, 20, 21, 22, 23, 24};
+int ring5[12] = {40, 41, 42, 43, 44, 45, 46, 47, 48, 49, 50, 51};
+int ring6[12] = {39, 38, 37, 36, 35, 34, 33, 32, 31, 30, 29, 28};
+
 // Rain Program
 void rain() {
-  delay(10);
-  uint32_t color = rings.Color(0, 0, 255);
+  delay(30);
+  uint32_t color = rings.Color(0, 0, 255, 0);
   createRain(color);
 }
 
 // Rainbow Rain Program
 void rainbowRain() {
   delay(25);
-  uint32_t color = rings.Color(random(255), random(255), random(255));
+  uint32_t color = rings.Color(random(255), random(255), random(255), 0);
   createRain(color);
 }
 
 // Base Rain Program
 void createRain(uint32_t color) {
-  // first move any ON lights down one on each strip
-  // for(int x=0; x < stripCount; x++) {
-  //   for(int y=ledCount-1; y>0; y--) {
-  //     if (strips[x][y-1] != 0) {
-  //         strips[x][y] = strips[x][y-1];
-  //         strips[x][y-1] = DimColor(strips[x][y-1], .50);  
-  //     }
-  //   }
-  //   // each row: special case turn off all first lights
-  //   strips[x][0] = 0;
-  // }
-  // // turn on light at first position of random strip
-  // strips[random(stripCount)][0] = color;
 
-  // updateStrips();
+   //first move any ON lights down one on each strip
+   for(int x=5; x > 0 ; x--) {
+    //if (colors[ring1[x-1]] != 0) {
+       colors[ring1[x]] = colors[ring1[x-1]];
+       colors[ring1[x-1]] = 0;
+     //}
+   }
+  // each row: special case turn off all first lights
+  colors[ring1[0]] = 0;
+
+  //first move any ON lights down one on each strip
+   for(int x=5; x > 0 ; x--) {
+    //if (colors[ring2[x-1]] != 0) {
+       colors[ring2[x]] = colors[ring2[x-1]];
+       colors[ring2[x-1]] = 0;
+     //}
+   }
+  // each row: special case turn off all first lights
+  colors[ring2[0]] = 0;
+
+  //first move any ON lights down one on each strip
+   for(int x=7; x > 0 ; x--) {
+    if (colors[ring3[x-1]] != 0) {
+       colors[ring3[x]] = colors[ring3[x-1]];
+       colors[ring3[x-1]] = DimColor(colors[ring3[x-1]], .40);
+     }
+   }
+  // each row: special case turn off all first lights
+  colors[ring3[0]] = 0;
+
+  //first move any ON lights down one on each strip
+   for(int x=7; x > 0 ; x--) {
+    if (colors[ring4[x-1]] != 0) {
+       colors[ring4[x]] = colors[ring4[x-1]];
+       colors[ring4[x-1]] = DimColor(colors[ring4[x-1]], .40);
+     }
+   }
+  // each row: special case turn off all first lights
+  colors[ring4[0]] = 0;
+
+  //first move any ON lights down one on each strip
+   for(int x=11; x > 0 ; x--) {
+    if (colors[ring5[x-1]] != 0) {
+       colors[ring5[x]] = colors[ring5[x-1]];
+       colors[ring5[x-1]] = DimColor(colors[ring5[x-1]], .50);
+     }
+   }
+  // each row: special case turn off all first lights
+  colors[ring5[0]] = 0;
+
+  //first move any ON lights down one on each strip
+   for(int x=11; x > 0 ; x--) {
+    if (colors[ring6[x-1]] != 0) {
+       colors[ring6[x]] = colors[ring6[x-1]];
+       colors[ring6[x-1]] = DimColor(colors[ring6[x-1]], .50);
+     }
+   }
+  // each row: special case turn off all first lights
+  colors[ring6[0]] = 0;
+  
+  // turn on light at first position of random strip
+  int randomOn = random(2);
+  if (randomOn == 1) {
+    int strip = random(10);
+    switch(strip){
+      case 0:
+        colors[ring1[0]] = color;
+      break;
+      case 1:
+        colors[ring2[0]] = color;
+      break;
+      case 2:
+      case 3:
+        colors[ring3[0]] = color;
+      break;
+      case 4:
+      case 5:
+        colors[ring4[0]] = color;
+      break;
+      case 6:
+      case 7:
+        colors[ring5[0]] = color;
+      break;
+      case 8:
+      case 9:
+        colors[ring6[0]] = color;
+      break;
+      default:
+      break;
+    }
+  }
+
+  updateRings();
 }
 
 //Rainbow Program
@@ -283,6 +370,14 @@ void rainbow() {
     rings.show();
     delay(20);
   }
+}
+
+// draw lights according to strips[][] array
+void updateRings() {
+  for(int i=0; i<52; i++) {
+    rings.setPixelColor(i, colors[i]);
+    rings.show();
+  }  
 }
 
 // Input a value 0 to 255 to get a color value.
