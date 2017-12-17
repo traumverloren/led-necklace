@@ -1,17 +1,25 @@
-#include <ESP8266WiFi.h> // Include the ESP8266 Library
+#include <ESP8266WiFi.h>
 #include <Adafruit_NeoPixel.h> // Include the adafruit Neopixel Library
-#include <WebSocketsClient.h> // Include Socket.IO client library to communicate with Server!
+#include <MQTTClient.h>
 
-const char* ssid     = "ssid";
-const char* password = "pw";
+const char ssid[] = "ssid";
+const char pass[] = "password";
+
+WiFiClient net;
+MQTTClient client;
+
+unsigned long lastMillis = 0;
+
+void connect();  // <- predefine connect() for setup()
+
 
 #define PIN         2
 #define LED_COUNT  52
 
 const int brightness = 5;
 
-enum mode {modeColorWipe, modeRainbowRain, modeRain, modeRainbow, modeSnake, modeSocketConnect, modeSparkle};
-mode currentMode = modeSocketConnect;
+enum mode {modeColorWipe, modeRainbowRain, modeRain, modeRainbow, modeRainbowSparkle, modeSnake, modeSparkle};
+mode currentMode = modeRainbowSparkle;
 
 // Parameter 1 = number of pixels in strip
 // Parameter 2 = pin number (most are valid)
@@ -22,115 +30,43 @@ mode currentMode = modeSocketConnect;
 //   NEO_RGB     Pixels are wired for RGB bitstream (v1 FLORA pixels, not v2)
 Adafruit_NeoPixel rings = Adafruit_NeoPixel(LED_COUNT, PIN, NEO_GRBW + NEO_KHZ800);
 
-WebSocketsClient webSocket;
 
-#define MESSAGE_INTERVAL 10000
-#define HEARTBEAT_INTERVAL 5000
-
-uint64_t messageTimestamp = 0;
-uint64_t heartbeatTimestamp = 0;
-bool isConnected = false;
-
-void webSocketEvent(WStype_t type, uint8_t * payload, size_t eventLength) {
-    String msg;
-    switch(type) {
-        case WStype_DISCONNECTED:
-            Serial.printf("[WSc] Disconnected!\n");
-            isConnected = false;
-            currentMode = modeSocketConnect;
-            break;
-        case WStype_CONNECTED:
-            Serial.printf("[WSc] Connected to url: %s\n",  payload);
-            // send message to server when Connected
-            // socket.io upgrade confirmation message (required)
-            webSocket.sendTXT("5");
-            isConnected = true;
-            currentMode = modeSparkle;
-            break;
-        case WStype_TEXT:
-            msg = String((char*)payload);
-            if(msg.startsWith("42")) {
-              trigger(getEventName(msg).c_str(), getEventPayload(msg).c_str(), eventLength);
-            }
-            break;
-        case WStype_BIN:
-            Serial.printf("[WSc] get binary length: %u\n", eventLength);
-            hexdump(payload, eventLength);
-
-            // send data to server
-            // webSocket.sendBIN(payload, eventLength);
-            break;
-    }
-}
-
-const String getEventName(const String msg) {
-  return msg.substring(4, msg.indexOf("\"",4));
-}
-
-const String getEventPayload(const String msg) {
-  String result = msg.substring(msg.indexOf("\"",4)+2,msg.length()-1);
-  if(result.startsWith("\"")) {
-    result.remove(0,1);
-  }
-  if(result.endsWith("\"")) {
-    result.remove(result.length()-1);
-  }
-  return result;
-}
-
-void trigger(const char* event, const char * payload, size_t triggerLength) {
-  if(strcmp(event, "rainbow") == 0) {
-    Serial.printf("[WSc] trigger event %s\n", event);
-    currentMode = modeRainbow;
-  } else if (strcmp(event, "colorWipe") == 0){
-     Serial.printf("[WSc] trigger event %s\n", event);
-     currentMode = modeColorWipe;
-  } else if (strcmp(event, "rainbowRain") == 0){
-     Serial.printf("[WSc] trigger event %s\n", event);
-     currentMode = modeRainbowRain;
-  } else if (strcmp(event, "rain") == 0){
-     Serial.printf("[WSc] trigger event %s\n", event);
-     currentMode = modeRain;
-  } else if (strcmp(event, "sparkle") == 0){
-     Serial.printf("[WSc] trigger event %s\n", event);
-     currentMode = modeSparkle;
-  } else if (strcmp(event, "snake") == 0){
-   Serial.printf("[WSc] trigger event %s\n", event);
-   currentMode = modeSnake;
-  }
-}
-
-void setup() {  
+void setup() {
   rings.begin();
   rings.setBrightness(brightness);
   rings.show();
   
-  Serial.begin(115200); // Get ready for serial communications and display the connection status
-  Serial.print("Connecting to WiFi network -  ");
+  Serial.begin(115200);
+  WiFi.begin(ssid, pass);
 
-  WiFi.begin(ssid, password);
+  // Note: Local domain names (e.g. "Computer.local" on OSX) are not supported by Arduino.
+  // You need to set the IP address directly.
+  //
+  // MQTT brokers usually use port 8883 for secure connections.
+  client.begin("broker.shiftr.io", net);
+  client.onMessage(messageReceived);
 
+  connect();
+}
+
+void connect() {
+  Serial.print("checking wifi...");
   while (WiFi.status() != WL_CONNECTED) {
-    delay(500);
     Serial.print(".");
+    delay(1000);
   }
 
-  Serial.println("");
-  Serial.println("WiFi connected!!!!!!!");
-  Serial.println("IP address: ");
-  Serial.println(WiFi.localIP());
+  Serial.print("\nconnecting...");
+  while (!client.connect("led-necklace", "key", "token")) {
+    Serial.print(".");
+    delay(1000);
+  }
 
-  delay(10);
-  webSocket.beginSocketIO("led-umbrella.herokuapp.com", 80);
-  isConnected = true;   
-  webSocket.onEvent(webSocketEvent);
-  delay(500);
+  Serial.println("\nconnected!");
+  client.subscribe("lights");
 }
 
 void loop() {
-  Serial.printf("loop heap size: %u\n", ESP.getFreeHeap());
-  webSocket.loop();
-  
   switch(currentMode)
   {
     case modeColorWipe:
@@ -157,38 +93,48 @@ void loop() {
       Serial.print("snake\n");
       snakeLoop();
       break;
+    case modeRainbowSparkle:
+      Serial.print("rainbow sparkle\n");
+      rainbowSparkle();
+      break;
     default:
       break;
   }
+  client.loop();
+  delay(10);  // <- fixes some issues with WiFi stability
 
-  if(isConnected) {
-
-      uint64_t now = millis();
-
-      if(now - messageTimestamp > MESSAGE_INTERVAL) {
-        messageTimestamp = now;
-        // example socket.io message with type "messageType" and JSON payload
-        webSocket.sendTXT("42[\"messageType\",{\"greeting\":\"hello\"}]");
-        delay(10);
-      }
-      if((now - heartbeatTimestamp) > HEARTBEAT_INTERVAL) {
-        heartbeatTimestamp = now;
-        // socket.io heartbeat message
-        webSocket.sendTXT("2");
-        delay(10);
-      }
-   } else {
-      Serial.printf("[WSc] Reconnected!\n");
-      while (WiFi.status() != WL_CONNECTED) {
-        delay(500);
-        Serial.print(".");
-      }
-      delay(10);
-      webSocket.beginSocketIO("led-umbrella.herokuapp.com", 80);
-      isConnected = true;   
-      currentMode = modeSocketConnect;
-    }    
+  if (!client.connected()) {
+    connect();
+  }
 }
+
+void messageReceived(String &topic, String &payload) {
+  Serial.println("incoming: " + topic + " - " + payload);
+  trigger(payload.c_str());
+}
+
+void trigger(const char* event) {
+  if(strcmp(event, "rainbow") == 0) {
+    Serial.printf("trigger event %s\n", event);
+    currentMode = modeRainbow;
+  } else if (strcmp(event, "colorWipe") == 0){
+     Serial.printf("trigger event %s\n", event);
+     currentMode = modeColorWipe;
+  } else if (strcmp(event, "rainbowRain") == 0){
+     Serial.printf("trigger event %s\n", event);
+     currentMode = modeRainbowRain;
+  } else if (strcmp(event, "rain") == 0){
+     Serial.printf("trigger event %s\n", event);
+     currentMode = modeRain;
+  } else if (strcmp(event, "sparkle") == 0){
+     Serial.printf("trigger event %s\n", event);
+     currentMode = modeSparkle;
+  } else if (strcmp(event, "snake") == 0){
+   Serial.printf("trigger event %s\n", event);
+   currentMode = modeSnake;
+  }
+}
+
 
 // Fill the dots one after the other with a color
 void colorWipe(uint32_t c, uint8_t wait) {
@@ -229,13 +175,26 @@ void snakeLoop() {
 }
 
 // MR SPARKLE PROGRAM!!!!
-// Draw a random led, remove a random led.
+// Call createSparkle with white color
 void sparkle() {
-  delay(100);
-  rings.setPixelColor(random(52), rings.Color(255, 255, 255));
-  rings.show();
-  rings.setPixelColor(random(52), rings.Color(0, 0, 0));  
-  rings.setPixelColor(random(52), rings.Color(0, 0, 0));  
+  createSparkle(rings.Color(255, 255, 255));
+}
+
+// Call createSparkle with random color
+void rainbowSparkle() {
+  createSparkle(rings.Color(random(255), random(255), random(255)));
+}
+
+// Draw 2 random leds, dim all leds, repeat
+void createSparkle(uint32_t color) {
+  delay(80);
+  rings.setPixelColor(random(52), color);
+  rings.setPixelColor(random(52), color);
+
+  for (int x=0; x<52; x++) {
+    rings.setPixelColor(x, DimColor(rings.getPixelColor(x), .80));  
+
+  }
   rings.show();
 }
 
