@@ -132,6 +132,9 @@ void trigger(const char* event) {
   } else if (strcmp(event, "snake") == 0){
    Serial.printf("trigger event %s\n", event);
    currentMode = modeSnake;
+  } else if (strcmp(event, "rainbowSparkle") == 0){
+    Serial.printf("trigger event %s\n", event);
+    currentMode = modeRainbowSparkle;
   }
 }
 
