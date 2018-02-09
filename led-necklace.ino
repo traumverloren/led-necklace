@@ -43,7 +43,7 @@ void setup() {
   // You need to set the IP address directly.
   //
   // MQTT brokers usually use port 8883 for secure connections.
-  client.begin("broker.shiftr.io", net);
+  client.begin(IP_ADDRESS, PORT, net);
   client.onMessage(messageReceived);
 
   connect();
@@ -57,7 +57,7 @@ void connect() {
   }
 
   Serial.print("\nconnecting...");
-  while (!client.connect("led-necklace", "key", "token")) {
+  while (!client.connect("led-necklace-huzzah", "key", "token")) {
     Serial.print(".");
     delay(1000);
   }
