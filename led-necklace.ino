@@ -11,11 +11,11 @@ const char pass[] = SECRET_PASS;
 
 unsigned long lastMillis = 0;
 const int brightness = 15;
-bool rainbowOn = false;
+bool rainbowOn = true;
 int colorR = 0;
 int colorG = 0;
-int colorB = 255;
-uint16_t TotalSteps = 400;  // total number of steps in the pattern
+int colorB = 0;
+uint16_t TotalSteps = 255;  // total number of steps in the pattern
 uint16_t Index;  // current step within the pattern
 uint32_t Color1, Color2;  // What colors are in use (used by Fade)
 
@@ -24,8 +24,8 @@ MQTTClient client;
 
 void connect();  // <- predefine connect() for setup()
 
-enum mode {modeFade, modeRain, modeSnake, modeSparkle};
-mode currentMode = modeRain;
+enum mode {modeFade, modeRain, modeSnake, modeSparkle, modeCarousel};
+mode currentMode = modeCarousel;
 
 // Parameter 1 = number of pixels in strip
 // Parameter 2 = pin number (most are valid)
@@ -44,8 +44,6 @@ void setup() {
   Serial.begin(115200);
   WiFi.begin(ssid, pass);
 
-  // Note: Local domain names (e.g. "Computer.local" on OSX) are not supported by Arduino.
-  // You need to set the IP address directly.
   client.begin(IP_ADDRESS, PORT, net);
   client.onMessage(messageReceived);
 
@@ -60,7 +58,7 @@ void connect() {
   }
 
   Serial.print("\nconnecting...");
-  while (!client.connect("led-necklace-m0", "", "")) {
+  while (!client.connect("led-necklace", "", "")) {
     Serial.print(".");
     delay(1000);
   }
@@ -103,6 +101,7 @@ void messageReceived(String &topic, String &payload) {
 
 void trigger(const char* event) {
   if (strcmp(event, "fade") == 0){
+     TotalSteps = 400;
      currentMode = modeFade;
   } else if (strcmp(event, "rain") == 0){
      currentMode = modeRain;
@@ -110,6 +109,9 @@ void trigger(const char* event) {
      currentMode = modeSparkle;
   } else if (strcmp(event, "snake") == 0){
    currentMode = modeSnake;
+  } else if (strcmp(event, "carousel") == 0){
+   TotalSteps = 255;
+   currentMode = modeCarousel;
   }
 }
 
@@ -131,6 +133,10 @@ void loop() {
     case modeSnake:
       Serial.print("snake\n");
       snakeLoop(50);
+      break;
+    case modeCarousel:
+      Serial.print("carousel\n");
+      carousel(0);
       break;
     default:
       break;
@@ -306,6 +312,69 @@ void updateRings() {
     rings.setPixelColor(i, colors[i]);
     rings.show();
   }  
+}
+
+int ringLarge[]  = {28, 29, 30, 31, 32, 33, 34, 35, 36, 37, 38, 39, 40, 41, 42, 43, 44, 45, 46, 47, 48, 49, 50, 51}; //24
+int ringMedium[] = {12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27}; //16
+int ringSmall[]  = {0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11}; //12
+
+// Run lights around the rings
+void carousel(uint8_t wait) {
+  const int sizeLarge  = 24;
+  const int sizeMedium = 16;
+  const int sizeSmall  = 12;
+  if(rainbowOn == true) {
+    rotateCarousel(sizeLarge, ringLarge);
+    rotateCarousel(sizeMedium, ringMedium);
+    rotateCarousel(sizeSmall, ringSmall);
+    delay(wait);
+  }
+  else {
+    uint16_t i;
+    Color1 = rings.Color(colorR, colorG, colorB);
+    Color2 = rings.Color(0,0,0);
+    
+    for(i=0; i<sizeLarge; i=i+2) {
+        colors[ringLarge[i]]   = Color1;
+        colors[ringLarge[i+1]] = Color2;
+    }
+    for(i=0; i<sizeMedium; i=i+2) {
+        colors[ringMedium[i]]   = Color1;
+        colors[ringMedium[i+1]] = Color2;
+    }
+    for(i=0; i<sizeSmall; i=i+2) {
+        colors[ringSmall[i]]   = Color1;
+        colors[ringSmall[i+1]] = Color2;
+    }
+    updateRings();
+    delay(wait);
+    for(i=0; i<sizeLarge; i=i+2) {
+        colors[ringLarge[i]]   = Color2;
+        colors[ringLarge[i+1]] = Color1;
+    }
+    for(i=0; i<sizeMedium; i=i+2) {
+        colors[ringMedium[i]]   = Color2;
+        colors[ringMedium[i+1]] = Color1;
+    }
+    for(i=0; i<sizeSmall; i=i+2) {
+        colors[ringSmall[i]]   = Color2;
+        colors[ringSmall[i+1]] = Color1;
+    }
+    updateRings();
+    delay(wait);
+  }
+}
+
+// Rotate colors around a ring once
+void rotateCarousel(int ringSize, int arrayPositions[]){
+  if (Index >= TotalSteps) {
+    Index = 0;
+  }
+  for(int x=ringSize; x >= 0 ; x--) {
+    rings.setPixelColor(arrayPositions[x], Wheel(((x * 256 / ringSize) + Index) & 255));
+  }
+  rings.show();
+  Index++;
 }
 
 // Input a value 0 to 255 to get a color value.
